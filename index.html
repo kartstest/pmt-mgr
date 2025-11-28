@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Prompt Manager</title>
+<style>
+ body {
+   background:#111;
+   color:#eee;
+   font-family:Arial, sans-serif;
+   margin:0;
+   padding:0;
+ }
+ header {
+   background:#222;
+   padding:10px 20px;
+   display:flex;
+   justify-content:space-between;
+   align-items:center;
+ }
+ header button {
+   margin-right:10px;
+ }
+ .page {
+   display:none;
+   padding:20px;
+ }
+ .active { display:block; }
+ textarea, input {
+   width:100%;
+   background:#222;
+   color:#eee;
+   border:1px solid #444;
+   padding:10px;
+   margin-bottom:15px;
+ }
+ button {
+   background:#333;
+   color:#eee;
+   border:1px solid #555;
+   padding:10px 15px;
+   cursor:pointer;
+ }
+ button:hover {
+   background:#444;
+ }
+ #promptList button {
+   width:100%;
+   text-align:left;
+   margin-bottom:10px;
+ }
+ .context-menu {
+   position:absolute;
+   background:#222;
+   border:1px solid #555;
+   display:none;
+   z-index:1000;
+ }
+ .context-menu div {
+   padding:10px;
+   cursor:pointer;
+ }
+ .context-menu div:hover {
+   background:#444;
+ }
+ #toast {
+   position:fixed;
+   bottom:20px;
+   right:20px;
+   background:#333;
+   padding:10px 20px;
+   border-radius:5px;
+   display:none;
+ }
+</style>
+</head>
+<body>
+<header>
+ <div>
+   <button onclick="showPage('savePage')">Save Prompt</button>
+   <button onclick="showPage('collectionPage')">Prompt Collection</button>
+ </div>
+ <div>
+   <button onclick="exportPrompts()">Export</button>
+   <button onclick="importPrompts()">Import</button>
+   <button onclick="resetAll()">Reset All</button>
+ </div>
+</header>
+
+<div id="savePage" class="page active">
+ <h2>Save Prompt</h2>
+ <input id="heading" placeholder="Heading" />
+ <textarea id="prompt" rows="10" placeholder="Prompt text..."></textarea>
+ <button onclick="savePrompt()">Save</button>
+</div>
+
+<div id="collectionPage" class="page">
+ <h2>Prompt Collection</h2>
+ <div id="promptList"></div>
+</div>
+
+<div id="contextMenu" class="context-menu">
+ <div onclick="viewPrompt()">View Prompt</div>
+ <div onclick="editPrompt()">Edit Prompt</div>
+ <div onclick="deletePrompt()">Delete Prompt</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+ let prompts = JSON.parse(localStorage.getItem('prompts')||'[]');
+ let currentRightClick = null;
+
+ function showPage(pg){
+   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+   document.getElementById(pg).classList.add('active');
+   if(pg==='collectionPage') loadPrompts();
+ }
+
+ function savePrompt(){
+   let heading=document.getElementById('heading').value.trim();
+   let prompt=document.getElementById('prompt').value.trim();
+   if(!heading||!prompt){ alert('Both fields required'); return; }
+   prompts.push({heading,prompt});
+   localStorage.setItem('prompts',JSON.stringify(prompts));
+   alert('Saved!');
+   document.getElementById('heading').value='';
+   document.getElementById('prompt').value='';
+ }
+
+ function loadPrompts(){
+   let list=document.getElementById('promptList');
+   list.innerHTML='';
+   prompts.forEach((p,i)=>{
+     let btn=document.createElement('button');
+     btn.textContent=p.heading;
+     btn.oncontextmenu=(e)=>{ e.preventDefault(); openMenu(e,i); };
+     btn.onclick=()=>{ navigator.clipboard.writeText(p.prompt); toast('Prompt Copied'); };
+     list.appendChild(btn);
+   });
+ }
+
+ function openMenu(e,i){
+   currentRightClick=i;
+   let menu=document.getElementById('contextMenu');
+   menu.style.left=e.pageX+'px';
+   menu.style.top=e.pageY+'px';
+   menu.style.display='block';
+ }
+ window.onclick=()=>{
+   document.getElementById('contextMenu').style.display='none';
+ };
+
+ function viewPrompt(){ alert(prompts[currentRightClick].prompt); }
+ function editPrompt(){
+   let np=prompt('Edit prompt',prompts[currentRightClick].prompt);
+   if(np!==null){ prompts[currentRightClick].prompt=np; localStorage.setItem('prompts',JSON.stringify(prompts)); alert('Updated'); loadPrompts(); }
+ }
+ function deletePrompt(){
+   if(confirm('Delete this prompt?')){
+     prompts.splice(currentRightClick,1);
+     localStorage.setItem('prompts',JSON.stringify(prompts));
+     loadPrompts();
+   }
+ }
+
+ function toast(msg){
+   let t=document.getElementById('toast');
+   t.textContent=msg;
+   t.style.display='block';
+   setTimeout(()=>t.style.display='none',2000);
+ }
+
+ function resetAll(){ if(confirm('Delete everything?')){ prompts=[]; localStorage.removeItem('prompts'); loadPrompts(); } }
+
+ function exportPrompts(){
+   let data=JSON.stringify(prompts);
+   let blob=new Blob([data],{type:'application/json'});
+   let a=document.createElement('a');
+   a.href=URL.createObjectURL(blob);
+   a.download='prompts.json';
+   a.click();
+ }
+
+ function importPrompts(){
+   let inp=document.createElement('input');
+   inp.type='file'; inp.accept='application/json';
+   inp.onchange=(e)=>{
+     let file=e.target.files[0];
+     let reader=new FileReader();
+     reader.onload=()=>{
+       prompts=JSON.parse(reader.result);
+       localStorage.setItem('prompts',JSON.stringify(prompts));
+       alert('Imported!'); loadPrompts();
+     };
+     reader.readAsText(file);
+   };
+   inp.click();
+ }
+</script>
+</body>
+</html>
